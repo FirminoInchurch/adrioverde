@@ -18,9 +18,7 @@
   .hero img{width:64px;height:64px;border-radius:18px;margin-bottom:16px;box-shadow:0 6px 18px rgba(0,0,0,.25);}
   .hero h1{font-size:22px;margin:0 0 8px;font-weight:800;}
   .hero p{margin:0;font-size:13.5px;color:#DCEEFF;line-height:1.5;}
-
   .form-area{padding:26px 24px 40px;}
-
   .success{display:none;text-align:center;padding:60px 26px;}
   .success .ic{
     width:74px;height:74px;border-radius:50%;background:var(--green-100);color:var(--green);
@@ -32,33 +30,30 @@
 </head>
 <body>
 <div class="wrap">
-
   <div id="formScreen">
     <div class="hero">
       <img src="assets/logo-mark.png" alt="Logo AD Rio Verde">
       <h1>Bem-vindo(a) à família AD Rio Verde</h1>
       <p>Que bom ter você aqui! Conta um pouquinho sobre você — é rapidinho.</p>
     </div>
-
     <div class="form-area">
       <label>Seu nome completo *</label>
       <input type="text" id="nome" placeholder="Como você se chama?">
-
-      <label>WhatsApp</label>
+      <label>WhatsApp *</label>
       <input type="tel" id="telefone" placeholder="(62) 9 0000-0000">
-
+      <label>E-mail (para cadastro na plataforma)</label>
+      <input type="email" id="email" placeholder="nome@email.com">
       <div class="field-row-2">
         <div>
-          <label>Bairro</label>
+          <label>Bairro *</label>
           <input type="text" id="bairro" placeholder="Onde você mora">
         </div>
         <div>
-          <label>Idade</label>
+          <label>Idade *</label>
           <input type="number" id="idade" placeholder="Anos" min="0">
         </div>
       </div>
-
-      <label>Estado civil</label>
+      <label>Estado civil *</label>
       <select id="estadoCivil">
         <option value="">Selecione</option>
         <option>Solteiro(a)</option>
@@ -66,33 +61,26 @@
         <option>Divorciado(a)</option>
         <option>Viúvo(a)</option>
       </select>
-
-      <label>Gostaria de participar de um Grupo de Crescimento?</label>
+      <label>Gostaria de participar de um Grupo de Crescimento? *</label>
       <div class="seg" id="segGC">
         <button type="button" data-v="Sim" onclick="setGC(this)">Sim</button>
         <button type="button" data-v="Não" onclick="setGC(this)">Não</button>
       </div>
       <input type="hidden" id="quisGC">
-
       <label>Quer deixar um pedido de oração? (opcional)</label>
       <textarea id="pedidoOracao" placeholder="Fique à vontade..."></textarea>
-
       <button class="btn-ember block" style="margin-top:22px" onclick="enviar()">
         <i class="ti ti-send"></i>Enviar
       </button>
     </div>
   </div>
-
   <div class="success" id="successScreen">
     <div class="ic"><i class="ti ti-check"></i></div>
     <h2>Recebemos seus dados!</h2>
     <p>Foi muito bom ter você com a gente. Em breve alguém da nossa equipe vai te procurar.</p>
   </div>
-
 </div>
-
 <div class="toast" id="toast"></div>
-
 <script src="store.js"></script>
 <script>
 function showToast(msg){
@@ -107,14 +95,25 @@ function setGC(btn){
 }
 function enviar(){
   const nome = document.getElementById('nome').value.trim();
-  if(!nome){ showToast('Falta seu nome ali em cima :)'); return; }
+  if(!nome){ showToast('Preencha seu nome completo.'); return; }
+  const telefone = document.getElementById('telefone').value.trim();
+  if(!telefone){ showToast('Preencha seu WhatsApp.'); return; }
+  const bairro = document.getElementById('bairro').value.trim();
+  if(!bairro){ showToast('Preencha seu bairro.'); return; }
+  const idade = document.getElementById('idade').value.trim();
+  if(!idade){ showToast('Preencha sua idade.'); return; }
+  const estadoCivil = document.getElementById('estadoCivil').value;
+  if(!estadoCivil){ showToast('Selecione seu estado civil.'); return; }
+  const quisGC = document.getElementById('quisGC').value;
+  if(!quisGC){ showToast('Selecione se gostaria de participar de um GC.'); return; }
   Store.addPerson({
     nome,
-    telefone: document.getElementById('telefone').value.trim(),
-    bairro: document.getElementById('bairro').value.trim(),
-    idade: document.getElementById('idade').value.trim(),
-    estadoCivil: document.getElementById('estadoCivil').value,
-    quisGC: document.getElementById('quisGC').value,
+    telefone,
+    email: document.getElementById('email').value.trim(),
+    bairro,
+    idade,
+    estadoCivil,
+    quisGC,
     pedidoOracao: document.getElementById('pedidoOracao').value.trim(),
     quemColeta: 'Autocadastro (QR code)',
     stage: 'visitante',
