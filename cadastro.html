@@ -103,8 +103,9 @@
       <input type="hidden" id="quemColeta">
       <div id="wrapDepartamento" class="conditional" style="display:none">
         <label>Qual departamento? *</label>
-        <input type="text" id="departamento" list="deptList" placeholder="Selecione ou digite">
-        <datalist id="deptList"></datalist>
+        <select id="departamento">
+          <option value="">Selecione</option>
+        </select>
       </div>
       <button class="btn-ember block" style="margin-top:22px" onclick="enviar()">
         <i class="ti ti-send"></i>Enviar cadastro
@@ -121,15 +122,24 @@
 <div class="toast" id="toast"></div>
 <script src="store.js"></script>
 <script>
-let categoriaAtual = null;
-document.getElementById('deptList').innerHTML = Store.getDepartamentos().map(d=>`<option value="${d}">`).join('');
+var categoriaAtual = null;
+(function(){
+  var sel = document.getElementById('departamento');
+  var depts = Store.getDepartamentos();
+  depts.forEach(function(d){
+    var opt = document.createElement('option');
+    opt.value = d;
+    opt.textContent = d;
+    sel.appendChild(opt);
+  });
+})();
 function showToast(msg){
-  const t = document.getElementById('toast');
+  var t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 2600);
+  setTimeout(function(){ t.classList.remove('show'); }, 2600);
 }
 function setCategoria(btn){
-  document.querySelectorAll('#categoriaSeg button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#categoriaSeg button').forEach(function(b){ b.classList.remove('active'); });
   btn.classList.add('active');
   categoriaAtual = btn.dataset.v;
   document.getElementById('wrapComum').style.display = 'block';
@@ -138,7 +148,7 @@ function setCategoria(btn){
   document.getElementById('wrapVisitante').style.display = categoriaAtual === 'visitante' ? 'block' : 'none';
 }
 function setSeg(groupId, hiddenId, btn){
-  document.querySelectorAll(`#${groupId} button`).forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#' + groupId + ' button').forEach(function(b){ b.classList.remove('active'); });
   btn.classList.add('active');
   document.getElementById(hiddenId).value = btn.dataset.v;
   if(hiddenId === 'temCarta'){
@@ -146,78 +156,77 @@ function setSeg(groupId, hiddenId, btn){
   }
 }
 function setColeta(btn){
-  document.querySelectorAll('#segColeta button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#segColeta button').forEach(function(b){ b.classList.remove('active'); });
   btn.classList.add('active');
   document.getElementById('quemColeta').value = btn.dataset.v;
   document.getElementById('wrapDepartamento').style.display = btn.dataset.v === 'Departamento' ? 'block' : 'none';
 }
 function enviar(){
-  const nome = document.getElementById('nome').value.trim();
+  var nome = document.getElementById('nome').value.trim();
   if(!nome){ showToast('Preencha o nome completo.'); return; }
-  if(!categoriaAtual){ showToast('Escolha a situação da pessoa.'); return; }
-  const telefone = document.getElementById('telefone').value.trim();
+  var telefone = document.getElementById('telefone').value.trim();
   if(!telefone){ showToast('Preencha o WhatsApp.'); return; }
-  const email = document.getElementById('email').value.trim();
+  var email = document.getElementById('email').value.trim();
   if(!email){ showToast('Preencha o e-mail.'); return; }
-  const bairro = document.getElementById('bairro').value.trim();
+  if(!categoriaAtual){ showToast('Escolha a situação da pessoa.'); return; }
+  var bairro = document.getElementById('bairro').value.trim();
   if(!bairro){ showToast('Preencha o bairro.'); return; }
-  const idade = document.getElementById('idade').value.trim();
+  var idade = document.getElementById('idade').value.trim();
   if(!idade){ showToast('Preencha a idade.'); return; }
-  const estadoCivil = document.getElementById('estadoCivil').value;
+  var estadoCivil = document.getElementById('estadoCivil').value;
   if(!estadoCivil){ showToast('Selecione o estado civil.'); return; }
   if(categoriaAtual === 'reconciliado'){
-    const igrejaAnterior = document.getElementById('igrejaAnterior').value.trim();
-    if(!igrejaAnterior){ showToast('Preencha em qual igreja aceitou Jesus.'); return; }
+    var igreja = document.getElementById('igrejaAnterior').value.trim();
+    if(!igreja){ showToast('Preencha em qual igreja aceitou Jesus.'); return; }
   }
   if(categoriaAtual === 'novo_membro'){
-    const temCarta = document.getElementById('temCarta').value;
+    var temCarta = document.getElementById('temCarta').value;
     if(!temCarta){ showToast('Selecione se tem carta de transferência.'); return; }
     if(temCarta === 'Sim'){
-      const funcao = document.getElementById('funcaoMinisterial').value.trim();
+      var funcao = document.getElementById('funcaoMinisterial').value.trim();
       if(!funcao){ showToast('Preencha a função ministerial.'); return; }
     }
   }
   if(categoriaAtual === 'visitante'){
-    const quisGC = document.getElementById('quisGC').value;
+    var quisGC = document.getElementById('quisGC').value;
     if(!quisGC){ showToast('Selecione se gostaria de participar de um GC.'); return; }
   }
-  const quemColeta = document.getElementById('quemColeta').value;
+  var quemColeta = document.getElementById('quemColeta').value;
   if(!quemColeta){ showToast('Selecione quem está coletando as informações.'); return; }
   if(quemColeta === 'Departamento'){
-    const departamento = document.getElementById('departamento').value.trim();
-    if(!departamento){ showToast('Preencha o departamento.'); return; }
+    var depto = document.getElementById('departamento').value;
+    if(!depto){ showToast('Selecione o departamento.'); return; }
   }
   Store.addPerson({
-    nome,
-    telefone,
-    email,
-    bairro,
-    idade,
-    estadoCivil,
+    nome: nome,
+    telefone: telefone,
+    email: email,
+    bairro: bairro,
+    idade: idade,
+    estadoCivil: estadoCivil,
     igrejaAnterior: document.getElementById('igrejaAnterior').value.trim(),
     temCarta: document.getElementById('temCarta').value,
     funcaoMinisterial: document.getElementById('funcaoMinisterial').value.trim(),
     quisGC: document.getElementById('quisGC').value,
-    quemColeta,
-    departamento: document.getElementById('departamento').value.trim(),
-    stage: categoriaAtual,
+    quemColeta: quemColeta,
+    departamento: document.getElementById('departamento').value,
+    stage: categoriaAtual
   });
   document.getElementById('formScreen').style.display = 'none';
   document.getElementById('successScreen').style.display = 'block';
 }
 function novoCadastro(){
-  ['nome','telefone','email','bairro','idade','igrejaAnterior','funcaoMinisterial','departamento'].forEach(id=>{
-    document.getElementById(id).value = '';
-  });
+  var ids = ['nome','telefone','email','bairro','idade','igrejaAnterior','funcaoMinisterial'];
+  ids.forEach(function(id){ document.getElementById(id).value = ''; });
   document.getElementById('estadoCivil').value = '';
   document.getElementById('temCarta').value = '';
   document.getElementById('quisGC').value = '';
   document.getElementById('quemColeta').value = '';
+  document.getElementById('departamento').value = '';
   categoriaAtual = null;
-  document.querySelectorAll('.seg button').forEach(b=>b.classList.remove('active'));
-  ['wrapComum','wrapReconciliado','wrapNovoMembro','wrapVisitante','wrapFuncao','wrapDepartamento'].forEach(id=>{
-    document.getElementById(id).style.display = 'none';
-  });
+  document.querySelectorAll('.seg button').forEach(function(b){ b.classList.remove('active'); });
+  var wraps = ['wrapComum','wrapReconciliado','wrapNovoMembro','wrapVisitante','wrapFuncao','wrapDepartamento'];
+  wraps.forEach(function(id){ document.getElementById(id).style.display = 'none'; });
   document.getElementById('successScreen').style.display = 'none';
   document.getElementById('formScreen').style.display = 'block';
 }
