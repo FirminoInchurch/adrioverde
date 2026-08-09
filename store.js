@@ -18,4 +18,175 @@ const STAGES = [
 // Consolidação OU Escola de batismo (condicional) → Capacitação → Voluntariado → Membro
 const SUB_STAGES = [
   { id:'consolidacao',    label:'Consolidação',      desc:'Acompanhamento e discipulado', icon:'ti-heart-handshake', accent:'ember' },
-  { 
+  { id:'escola_batismo',  label:'Escola de batismo', desc:'Preparação doutrinária', icon:'ti-book', accent:'ember' },
+  { id:'capacitacao',     label:'Capacitação',       desc:'Treinamento para servir', icon:'ti-school', accent:'ember' },
+  { id:'voluntariado',    label:'Voluntariado',      desc:'Primeiros passos servindo', icon:'ti-hand-stop', accent:'ember' },
+];
+const SUB_ORDER = ['consolidacao', 'escola_batismo', 'capacitacao', 'voluntariado'];
+
+function nextStageId(stageId){
+  if(ENTRY_STAGES.includes(stageId)) return 'gc';
+  const i = LINEAR_STAGES.indexOf(stageId);
+  if(i === -1 || i === LINEAR_STAGES.length-1) return null;
+  return LINEAR_STAGES[i+1];
+}
+function prevStageId(stageId, person){
+  if(stageId === 'gc'){
+    const origem = person && person.origem;
+    return ENTRY_STAGES.includes(origem) ? origem : null;
+  }
+  const i = LINEAR_STAGES.indexOf(stageId);
+  if(i <= 0) return null;
+  return LINEAR_STAGES[i-1];
+}
+function nextSubStageId(subStageId){
+  const i = SUB_ORDER.indexOf(subStageId);
+  if(i === -1 || i === SUB_ORDER.length-1) return null;
+  return SUB_ORDER[i+1];
+}
+function prevSubStageId(subStageId){
+  const i = SUB_ORDER.indexOf(subStageId);
+  if(i <= 0) return null;
+  return SUB_ORDER[i-1];
+}
+
+const Store = {
+  _key: 'jornada_pessoas',
+  _keyResp: 'jornada_responsaveis',
+  _keyApi: 'jornada_api_config',
+  _keyDeptos: 'jornada_departamentos',
+  getPeople(){
+    return JSON.parse(localStorage.getItem(this._key) || '[]');
+  },
+  _savePeople(list){
+    localStorage.setItem(this._key, JSON.stringify(list));
+  },
+  addPerson(data){
+    const list = this.getPeople();
+    const stage = data.stage || 'visitante';
+    const p = {
+      id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      nome: data.nome || '',
+      telefone: data.telefone || '',
+      email: data.email || '',
+      bairro: data.bairro || '',
+      idade: data.idade || '',
+      estadoCivil: data.estadoCivil || '',
+      igrejaAnterior: data.igrejaAnterior || '',
+      temCarta: data.temCarta || '',
+      funcaoMinisterial: data.funcaoMinisterial || '',
+      quisGC: data.quisGC || '',
+      pedidoOracao: data.pedidoOracao || '',
+      congregacao: data.congregacao || '',
+      quemColeta: data.quemColeta || '',
+      departamento: data.departamento || '',
+      agenteIntegrante: data.agenteIntegrante || '',
+      subStage: data.subStage || '',
+      notas: data.notas || '',
+      foto: data.foto || null,
+      stage,
+      origem: stage,
+      createdAt: new Date().toISOString(),
+      history: [{ stage, date: new Date().toISOString() }],
+      subHistory: [],
+    };
+    list.push(p);
+    this._savePeople(list);
+    if(stage !== 'visitante'){ this.syncPreCadastro(p); }
+    return p;
+  },
+  updatePerson(id, data){
+    const list = this.getPeople();
+    const p = list.find(x=>x.id===id);
+    if(!p) return null;
+    Object.assign(p, data);
+    this._savePeople(list);
+    return p;
+  },
+  movePerson(id, newStageId){
+    const list = this.getPeople();
+    const p = list.find(x=>x.id===id);
+    if(!p) return null;
+    p.stage = newStageId;
+    p.history = p.history || [];
+    p.history.push({ stage:newStageId, date:new Date().toISOString() });
+    this._savePeople(list);
+    if(newStageId === 'membro'){ Store.syncMembroFinal(p); }
+    return p;
+  },
+  moveSubStage(id, newSubStageId){
+    const list = this.getPeople();
+    const p = list.find(x=>x.id===id);
+    if(!p) return null;
+    p.subStage = newSubStageId;
+    p.subHistory = p.subHistory || [];
+    p.subHistory.push({ subStage:newSubStageId, date:new Date().toISOString() });
+    this._savePeople(list);
+    return p;
+  },
+  deletePerson(id){
+    const list = this.getPeople().filter(p=>p.id!==id);
+    this._savePeople(list);
+  },
+  peopleInStage(stageId, congregacao){
+    return this.getPeople().filter(p =>
+      p.stage === stageId && (!congregacao || congregacao==='todas' || p.congregacao===congregacao)
+    );
+  },
+  peopleInSubStage(subStageId){
+    return this.getPeople().filter(p => p.stage === 'jornada_membro' && p.subStage === subStageId);
+  },
+  congregacoes(){
+    return Array.from(new Set(this.getPeople().map(p=>p.congregacao).filter(Boolean))).sort();
+  },
+  getResponsaveis(){
+    return JSON.parse(localStorage.getItem(this._keyResp) || '{}');
+  },
+  setResponsavel(stageId, nome){
+    const r = this.getResponsaveis();
+    r[stageId] = nome;
+    localStorage.setItem(this._keyResp, JSON.stringify(r));
+  },
+  getDepartamentos(){
+    const saved = JSON.parse(localStorage.getItem(this._keyDeptos) || 'null');
+    return saved || ['UCADERV', 'MAAD', 'UMADERV', 'USADERV', 'HCP'];
+  },
+  setDepartamentos(list){
+    localStorage.setItem(this._keyDeptos, JSON.stringify(list));
+  },
+  getApiConfig(){
+    return JSON.parse(localStorage.getItem(this._keyApi) || '{}');
+  },
+  setApiConfig(cfg){
+    localStorage.setItem(this._keyApi, JSON.stringify(cfg));
+  },
+  async syncPreCadastro(person){
+    const cfg = this.getApiConfig();
+    if(!cfg.baseUrl){ this.updatePerson(person.id, { pendingSync:true }); return; }
+    try{
+      this.updatePerson(person.id, { pendingSync:false });
+    }catch(err){ this.updatePerson(person.id, { pendingSync:true }); }
+  },
+  async syncMembroFinal(person){
+    const cfg = this.getApiConfig();
+    if(!cfg.baseUrl){ this.updatePerson(person.id, { pendingSyncMembro:true }); return; }
+    try{
+      this.updatePerson(person.id, { pendingSyncMembro:false });
+    }catch(err){ this.updatePerson(person.id, { pendingSyncMembro:true }); }
+  },
+};
+function initials(name){
+  return (name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+}
+function avatarHtml(p, size){
+  if(p.foto){ return `<img class="avatar" src="${p.foto}" style="width:${size}px;height:${size}px">`; }
+  return `<div class="avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px">${initials(p.nome)}</div>`;
+}
+function daysSince(dateStr){
+  const d = Math.floor((Date.now() - new Date(dateStr).getTime())/86400000);
+  return d <= 0 ? 'hoje' : (d===1 ? 'há 1 dia' : `há ${d} dias`);
+}
+function lastHistoryDate(p){
+  if(p.history && p.history.length) return p.history[p.history.length-1].date;
+  return p.createdAt;
+}
