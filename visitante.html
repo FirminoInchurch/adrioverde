@@ -84,39 +84,39 @@
 <script src="store.js"></script>
 <script>
 function showToast(msg){
-  const t = document.getElementById('toast');
+  var t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 2600);
+  setTimeout(function(){ t.classList.remove('show'); }, 2600);
 }
 function setGC(btn){
-  document.querySelectorAll('#segGC button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#segGC button').forEach(function(b){ b.classList.remove('active'); });
   btn.classList.add('active');
   document.getElementById('quisGC').value = btn.dataset.v;
 }
 function enviar(){
-  const nome = document.getElementById('nome').value.trim();
+  var nome = document.getElementById('nome').value.trim();
   if(!nome){ showToast('Preencha seu nome completo.'); return; }
-  const telefone = document.getElementById('telefone').value.trim();
+  var telefone = document.getElementById('telefone').value.trim();
   if(!telefone){ showToast('Preencha seu WhatsApp.'); return; }
-  const bairro = document.getElementById('bairro').value.trim();
+  var bairro = document.getElementById('bairro').value.trim();
   if(!bairro){ showToast('Preencha seu bairro.'); return; }
-  const idade = document.getElementById('idade').value.trim();
+  var idade = document.getElementById('idade').value.trim();
   if(!idade){ showToast('Preencha sua idade.'); return; }
-  const estadoCivil = document.getElementById('estadoCivil').value;
+  var estadoCivil = document.getElementById('estadoCivil').value;
   if(!estadoCivil){ showToast('Selecione seu estado civil.'); return; }
-  const quisGC = document.getElementById('quisGC').value;
+  var quisGC = document.getElementById('quisGC').value;
   if(!quisGC){ showToast('Selecione se gostaria de participar de um GC.'); return; }
   Store.addPerson({
-    nome,
-    telefone,
+    nome: nome,
+    telefone: telefone,
     email: document.getElementById('email').value.trim(),
-    bairro,
-    idade,
-    estadoCivil,
-    quisGC,
+    bairro: bairro,
+    idade: idade,
+    estadoCivil: estadoCivil,
+    quisGC: quisGC,
     pedidoOracao: document.getElementById('pedidoOracao').value.trim(),
     quemColeta: 'Autocadastro (QR code)',
-    stage: 'visitante',
+    stage: 'visitante'
   });
   document.getElementById('formScreen').style.display = 'none';
   document.getElementById('successScreen').style.display = 'block';
