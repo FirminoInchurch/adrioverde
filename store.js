@@ -26,27 +26,27 @@ const SUB_ORDER = ['consolidacao', 'escola_batismo', 'capacitacao', 'voluntariad
 
 function nextStageId(stageId){
   if(ENTRY_STAGES.includes(stageId)) return 'gc';
-  const i = LINEAR_STAGES.indexOf(stageId);
+  var i = LINEAR_STAGES.indexOf(stageId);
   if(i === -1 || i === LINEAR_STAGES.length-1) return null;
   return LINEAR_STAGES[i+1];
 }
 function prevStageId(stageId, person){
   if(stageId === 'gc'){
-    const origem = person && person.origem;
+    var origem = person && person.origem;
     return ENTRY_STAGES.includes(origem) ? origem : null;
   }
-  const i = LINEAR_STAGES.indexOf(stageId);
-  if(i <= 0) return null;
+  var i = LINEAR_STAGES.indexOf(stageId);
+  if(i === 0 || i === -1) return null;
   return LINEAR_STAGES[i-1];
 }
 function nextSubStageId(subStageId){
-  const i = SUB_ORDER.indexOf(subStageId);
+  var i = SUB_ORDER.indexOf(subStageId);
   if(i === -1 || i === SUB_ORDER.length-1) return null;
   return SUB_ORDER[i+1];
 }
 function prevSubStageId(subStageId){
-  const i = SUB_ORDER.indexOf(subStageId);
-  if(i <= 0) return null;
+  var i = SUB_ORDER.indexOf(subStageId);
+  if(i === 0 || i === -1) return null;
   return SUB_ORDER[i-1];
 }
 
@@ -62,9 +62,9 @@ const Store = {
     localStorage.setItem(this._key, JSON.stringify(list));
   },
   addPerson(data){
-    const list = this.getPeople();
-    const stage = data.stage || 'visitante';
-    const p = {
+    var list = this.getPeople();
+    var stage = data.stage || 'visitante';
+    var p = {
       id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
       nome: data.nome || '',
       telefone: data.telefone || '',
@@ -84,10 +84,10 @@ const Store = {
       subStage: data.subStage || '',
       notas: data.notas || '',
       foto: data.foto || null,
-      stage,
+      stage: stage,
       origem: stage,
       createdAt: new Date().toISOString(),
-      history: [{ stage, date: new Date().toISOString() }],
+      history: [{ stage: stage, date: new Date().toISOString() }],
       subHistory: [],
     };
     list.push(p);
@@ -96,59 +96,61 @@ const Store = {
     return p;
   },
   updatePerson(id, data){
-    const list = this.getPeople();
-    const p = list.find(x=>x.id===id);
+    var list = this.getPeople();
+    var p = list.find(function(x){ return x.id === id; });
     if(!p) return null;
     Object.assign(p, data);
     this._savePeople(list);
     return p;
   },
   movePerson(id, newStageId){
-    const list = this.getPeople();
-    const p = list.find(x=>x.id===id);
+    var list = this.getPeople();
+    var p = list.find(function(x){ return x.id === id; });
     if(!p) return null;
     p.stage = newStageId;
     p.history = p.history || [];
-    p.history.push({ stage:newStageId, date:new Date().toISOString() });
+    p.history.push({ stage: newStageId, date: new Date().toISOString() });
     this._savePeople(list);
     if(newStageId === 'membro'){ Store.syncMembroFinal(p); }
     return p;
   },
   moveSubStage(id, newSubStageId){
-    const list = this.getPeople();
-    const p = list.find(x=>x.id===id);
+    var list = this.getPeople();
+    var p = list.find(function(x){ return x.id === id; });
     if(!p) return null;
     p.subStage = newSubStageId;
     p.subHistory = p.subHistory || [];
-    p.subHistory.push({ subStage:newSubStageId, date:new Date().toISOString() });
+    p.subHistory.push({ subStage: newSubStageId, date: new Date().toISOString() });
     this._savePeople(list);
     return p;
   },
   deletePerson(id){
-    const list = this.getPeople().filter(p=>p.id!==id);
+    var list = this.getPeople().filter(function(p){ return p.id !== id; });
     this._savePeople(list);
   },
   peopleInStage(stageId, congregacao){
-    return this.getPeople().filter(p =>
-      p.stage === stageId && (!congregacao || congregacao==='todas' || p.congregacao===congregacao)
-    );
+    return this.getPeople().filter(function(p){
+      return p.stage === stageId && (!congregacao || congregacao === 'todas' || p.congregacao === congregacao);
+    });
   },
   peopleInSubStage(subStageId){
-    return this.getPeople().filter(p => p.stage === 'jornada_membro' && p.subStage === subStageId);
+    return this.getPeople().filter(function(p){
+      return p.stage === 'jornada_membro' && p.subStage === subStageId;
+    });
   },
   congregacoes(){
-    return Array.from(new Set(this.getPeople().map(p=>p.congregacao).filter(Boolean))).sort();
+    return Array.from(new Set(this.getPeople().map(function(p){ return p.congregacao; }).filter(Boolean))).sort();
   },
   getResponsaveis(){
     return JSON.parse(localStorage.getItem(this._keyResp) || '{}');
   },
   setResponsavel(stageId, nome){
-    const r = this.getResponsaveis();
+    var r = this.getResponsaveis();
     r[stageId] = nome;
     localStorage.setItem(this._keyResp, JSON.stringify(r));
   },
   getDepartamentos(){
-    const saved = JSON.parse(localStorage.getItem(this._keyDeptos) || 'null');
+    var saved = JSON.parse(localStorage.getItem(this._keyDeptos) || 'null');
     return saved || ['UCADERV', 'MAAD', 'UMADERV', 'USADERV', 'HCP'];
   },
   setDepartamentos(list){
@@ -161,14 +163,14 @@ const Store = {
     localStorage.setItem(this._keyApi, JSON.stringify(cfg));
   },
   async syncPreCadastro(person){
-    const cfg = this.getApiConfig();
+    var cfg = this.getApiConfig();
     if(!cfg.baseUrl){ this.updatePerson(person.id, { pendingSync:true }); return; }
     try{
       this.updatePerson(person.id, { pendingSync:false });
     }catch(err){ this.updatePerson(person.id, { pendingSync:true }); }
   },
   async syncMembroFinal(person){
-    const cfg = this.getApiConfig();
+    var cfg = this.getApiConfig();
     if(!cfg.baseUrl){ this.updatePerson(person.id, { pendingSyncMembro:true }); return; }
     try{
       this.updatePerson(person.id, { pendingSyncMembro:false });
@@ -176,15 +178,17 @@ const Store = {
   },
 };
 function initials(name){
-  return (name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  return (name||'?').trim().split(/\s+/).slice(0,2).map(function(w){ return w[0]; }).join('').toUpperCase();
 }
 function avatarHtml(p, size){
-  if(p.foto){ return `<img class="avatar" src="${p.foto}" style="width:${size}px;height:${size}px">`; }
-  return `<div class="avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px">${initials(p.nome)}</div>`;
+  if(p.foto){ return '<img class="avatar" src="'+p.foto+'" style="width:'+size+'px;height:'+size+'px">'; }
+  return '<div class="avatar" style="width:'+size+'px;height:'+size+'px;font-size:'+Math.round(size*0.36)+'px">'+initials(p.nome)+'</div>';
 }
 function daysSince(dateStr){
-  const d = Math.floor((Date.now() - new Date(dateStr).getTime())/86400000);
-  return d <= 0 ? 'hoje' : (d===1 ? 'há 1 dia' : `há ${d} dias`);
+  var d = Math.floor((Date.now() - new Date(dateStr).getTime())/86400000);
+  if(d === 0 || d === -1) return 'hoje';
+  if(d === 1) return 'há 1 dia';
+  return 'há '+d+' dias';
 }
 function lastHistoryDate(p){
   if(p.history && p.history.length) return p.history[p.history.length-1].date;
