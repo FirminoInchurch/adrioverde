@@ -127,17 +127,6 @@
   </div>
 </div>
 
-<div class="overlay" id="routeModal">
-  <div class="modal subfunnel-route-modal">
-    <h3>Qual caminho a pessoa vai seguir?</h3>
-    <p>Na Jornada do Membro, a pessoa passa por Consolidação <strong>OU</strong> Escola de Batismo — depois segue para Capacitação e Voluntariado.</p>
-    <div class="subfunnel-route-options">
-      <button onclick="selectRoute('consolidacao')"><div class="ic"><i class="ti ti-heart-handshake"></i></div><strong>Consolidação</strong><small>Acompanhamento e discipulado</small></button>
-      <button onclick="selectRoute('escola_batismo')"><div class="ic"><i class="ti ti-book"></i></div><strong>Escola de Batismo</strong><small>Preparação doutrinária</small></button>
-    </div>
-  </div>
-</div>
-
 <div class="overlay" id="subFunnelModal">
   <div class="modal" style="max-width:680px">
     <div class="subfunnel-bar">
@@ -145,6 +134,17 @@
       <h3>Jornada do Membro</h3>
     </div>
     <div class="subfunnel-grid" id="subFunnelGrid"></div>
+  </div>
+</div>
+
+<div class="overlay" id="routeModal" style="z-index:70">
+  <div class="modal subfunnel-route-modal">
+    <div class="modal-head"><h2>Qual caminho a pessoa vai seguir?</h2><button class="close-x" onclick="cancelRoute()">×</button></div>
+    <p>Na Jornada do Membro, a pessoa passa por Consolidação <strong>OU</strong> Escola de Batismo — depois segue para Capacitação e Voluntariado.</p>
+    <div class="subfunnel-route-options">
+      <button onclick="selectRoute('consolidacao')"><div class="ic"><i class="ti ti-heart-handshake"></i></div><strong>Consolidação</strong><small>Acompanhamento e discipulado</small></button>
+      <button onclick="selectRoute('escola_batismo')"><div class="ic"><i class="ti ti-book"></i></div><strong>Escola de Batismo</strong><small>Preparação doutrinária</small></button>
+    </div>
   </div>
 </div>
 
@@ -279,6 +279,11 @@ function openRouteForPerson(id){
   pendingRoutePersonId=id;
   closeModal('personModal');
   openModal('routeModal');
+}
+
+function cancelRoute(){
+  pendingRoutePersonId=null;
+  closeModal('routeModal');
 }
 
 function saveAgente(id){
