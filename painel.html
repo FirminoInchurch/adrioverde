@@ -52,6 +52,8 @@
   .move-btns button{flex:1;justify-content:center;font-size:12.5px;padding:9px 10px;}
   .detail-section{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
   .detail-section h4{font-size:12px;font-weight:700;color:var(--muted);margin:0 0 8px;text-transform:uppercase;letter-spacing:.06em;}
+  .api-hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4;}
+  .api-hint a{color:var(--blue-500);}
 </style>
 </head>
 <body>
@@ -119,11 +121,19 @@
 
 <div class="overlay" id="apiModal" style="z-index:70">
   <div class="modal">
-    <div class="modal-head"><h2>Configurações</h2><button class="close-x" onclick="closeModal('apiModal')">×</button></div>
-    <label>URL base da API (inChurch)</label><input type="text" id="apiUrl" placeholder="https://api.inchurch.com.br/v1">
-    <label>Token de acesso</label><input type="password" id="apiToken" placeholder="Bearer token">
-    <label>Departamentos (um por linha)</label><textarea id="apiDeptos" rows="5" placeholder="UCADERV&#10;MAAD&#10;UMADERV"></textarea>
-    <button class="btn-primary block" style="margin-top:14px" onclick="saveApiConfig()"><i class="ti ti-check"></i>Salvar</button>
+    <div class="modal-head"><h2>Configurações da API</h2><button class="close-x" onclick="closeModal('apiModal')">×</button></div>
+    <label>URL base da API (inChurch)</label>
+    <input type="text" id="apiUrl" placeholder="https://inradar.com.br/public" value="https://inradar.com.br/public">
+    <div class="api-hint">A URL base já vem preenchida. Se a inChurch mudar o endereço no futuro, troque aqui.</div>
+    <label>API Key</label>
+    <input type="text" id="apiKey" placeholder="Sua API Key (identificador público)">
+    <div class="api-hint">Criar em: <a href="https://admin.inchurch.com.br/api/clientes" target="_blank">admin.inchurch.com.br/api/clientes</a></div>
+    <label>API Secret</label>
+    <input type="password" id="apiSecret" placeholder="Sua API Secret (chave privada)">
+    <div class="api-hint">Mostrada apenas uma vez no momento da criação. Guarde com segurança.</div>
+    <label>Departamentos (um por linha)</label>
+    <textarea id="apiDeptos" rows="5" placeholder="UCADERV&#10;MAAD&#10;UMADERV"></textarea>
+    <button class="btn-primary block" style="margin-top:14px" onclick="saveApiConfig()"><i class="ti ti-check"></i>Salvar configurações</button>
   </div>
 </div>
 
@@ -225,6 +235,7 @@ function openPerson(id){
     '<div style="flex:1"><h2 style="margin:0;font-size:16px">'+(p.nome||'?')+'</h2>'+
     '<div style="font-size:12px;color:var(--muted)">'+(s?s.label:'')+' · '+daysSince(lastHistoryDate(p))+'</div></div></div>';
   if(p.pendingSync)h+='<div class="badge-pending" style="margin-bottom:8px">Pré-cadastro pendente</div>';
+  if(p.inchurchId)h+='<div class="tag" style="margin-bottom:8px">inChurch ID: '+p.inchurchId+'</div>';
   if(p.telefone)h+=fld('WhatsApp',p.telefone);
   if(p.email)h+=fld('E-mail',p.email);
   if(p.bairro)h+=fld('Bairro',p.bairro);
@@ -400,14 +411,19 @@ function addPersonQuick(){
 
 function openApiConfig(){
   var cfg=Store.getApiConfig();
-  document.getElementById('apiUrl').value=cfg.baseUrl||'';
-  document.getElementById('apiToken').value=cfg.token||'';
+  document.getElementById('apiUrl').value=cfg.baseUrl||'https://inradar.com.br/public';
+  document.getElementById('apiKey').value=cfg.apiKey||'';
+  document.getElementById('apiSecret').value=cfg.apiSecret||'';
   document.getElementById('apiDeptos').value=Store.getDepartamentos().join('\n');
   openModal('apiModal');
 }
 
 function saveApiConfig(){
-  Store.setApiConfig({baseUrl:document.getElementById('apiUrl').value.trim(),token:document.getElementById('apiToken').value.trim()});
+  Store.setApiConfig({
+    baseUrl:document.getElementById('apiUrl').value.trim(),
+    apiKey:document.getElementById('apiKey').value.trim(),
+    apiSecret:document.getElementById('apiSecret').value.trim()
+  });
   var deptos=document.getElementById('apiDeptos').value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
   if(deptos.length)Store.setDepartamentos(deptos);
   closeModal('apiModal');
