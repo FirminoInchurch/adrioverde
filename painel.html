@@ -151,7 +151,8 @@
 <div class="toast" id="toast"></div>
 <script src="store.js"></script>
 <script>
-var currentStage=null,currentPersonId=null,pendingRoutePersonId=null,newPersonStage=null,pendingFotoDataUrl=null;
+var currentStage=null,currentPersonId=null,pendingRoutePersonId=null,newPersonStage=null;
+
 var base=document.location.origin+document.location.pathname.replace('painel.html','');
 document.getElementById('teamLink').textContent=base+'cadastro.html';
 document.getElementById('visitorLink').textContent=base+'visitante.html';
@@ -160,6 +161,7 @@ function showToast(msg){var t=document.getElementById('toast');t.textContent=msg
 function copyLink(id){navigator.clipboard.writeText(document.getElementById(id).textContent).then(function(){showToast('Link copiado!');});}
 function openModal(id){document.getElementById(id).classList.add('show');}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
+function fld(label,val){return '<div class="detail-field"><label>'+label+'</label><div class="val">'+val+'</div></div>';}
 
 function renderAll(){
   var sel=document.getElementById('congSelect');var cv=sel.value;
@@ -246,4 +248,144 @@ function openPerson(id){
     else{si='<em style="color:var(--ember-dark)">Aguardando definição de rota</em>';}
     h+='<div class="detail-section"><h4>Sub-etapa atual</h4><div style="font-size:13px">'+si+'</div></div>';
     if(p.subStage){
-      var 
+      var ns=nextSubStageId(p.subStage);
+      if(ns){
+        h+='<div class="move-btns"><button class="btn-ember" onclick="moveSub(\''+p.id+'\',\''+ns+'\')">'+
+          '<i class="ti ti-arrow-right"></i>Avançar para '+SUB_STAGES.find(function(x){return x.id===ns;}).label+'</button></div>';
+      } else {
+        h+='<div class="move-btns"><button class="btn-primary" onclick="finishJourney(\''+p.id+'\')">'+
+          '<i class="ti ti-award"></i>Concluir jornada — virar Membro</button></div>';
+      }
+    }
+  }
+  var ns=nextStageId(p.stage);
+  var ps=prevStageId(p.stage,p);
+  if(ns||ps){
+    h+='<div class="move-btns">';
+    if(ps)h+='<button class="btn-outline" onclick="moveP(\''+p.id+'\',\''+ps+'\')"><i class="ti ti-arrow-left"></i>Voltar</button>';
+    if(ns&&p.stage!=='jornada_membro')h+='<button class="btn-primary" onclick="moveP(\''+p.id+'\',\''+ns+'\')"><i class="ti ti-arrow-right"></i>Avançar</button>';
+    h+='</div>';
+  }
+  h+='<div class="move-btns"><button class="btn-danger" onclick="deleteP(\''+p.id+'\')"><i class="ti ti-trash"></i>Remover pessoa</button></div>';
+  document.getElementById('personBody').innerHTML=h;
+  openModal('personModal');
+}
+
+function saveAgente(id){
+  var val=document.getElementById('agenteInput').value.trim();
+  Store.updatePerson(id,{agenteIntegrante:val});
+  showToast('Agente integrante salvo.');
+}
+
+function moveP(id,newStage){
+  Store.movePerson(id,newStage);
+  closeModal('personModal');
+  renderAll();
+  if(currentStage)renderStageList(currentStage);
+}
+
+function moveSub(id,newSub){
+  Store.moveSubStage(id,newSub);
+  openPerson(id);
+  renderSubFunnel();
+}
+
+function finishJourney(id){
+  Store.movePerson(id,'membro');
+  Store.updatePerson(id,{subStage:''});
+  closeModal('personModal');
+  renderAll();
+  showToast('Jornada concluída! A pessoa agora é um Membro.');
+}
+
+function deleteP(id){
+  if(!confirm('Tem certeza que deseja remover esta pessoa?'))return;
+  Store.deletePerson(id);
+  closeModal('personModal');
+  renderAll();
+  if(currentStage)renderStageList(currentStage);
+  showToast('Pessoa removida.');
+}
+
+function openSubFunnel(){
+  renderSubFunnel();
+  openModal('subFunnelModal');
+}
+
+function renderSubFunnel(){
+  var h='';
+  SUB_STAGES.forEach(function(ss){
+    var people=Store.peopleInSubStage(ss.id);
+    var ph='';
+    if(people.length===0){ph='<p style="font-size:11.5px;color:var(--muted);padding:8px 0">Ninguém aqui.</p>';}
+    else{people.forEach(function(p){
+      ph+='<div class="subfunnel-person" onclick="openPerson(\''+p.id+'\')">'+avatarHtml(p,28)+
+        '<div class="info"><strong>'+(p.nome||'?')+'</strong><small>'+daysSince(lastHistoryDate(p))+'</small></div></div>';
+    });}
+    h+='<div class="subfunnel-col"><div class="subfunnel-col-head">'+
+      '<div class="ic"><i class="ti '+ss.icon+'"></i></div>'+
+      '<div><h4>'+ss.label+'</h4><span class="count">'+people.length+' pessoas</span>'+
+      '<div class="desc">'+ss.desc+'</div></div></div>'+ph+'</div>';
+  });
+  document.getElementById('subFunnelGrid').innerHTML=h;
+}
+
+function selectRoute(route){
+  if(!pendingRoutePersonId)return;
+  Store.moveSubStage(pendingRoutePersonId,route);
+  pendingRoutePersonId=null;
+  closeModal('routeModal');
+  openPerson(currentPersonId);
+  renderSubFunnel();
+  renderAll();
+  showToast('Rota definida!');
+}
+
+function openNewPersonFromStage(){
+  newPersonStage=currentStage;
+  var s=STAGES.find(function(x){return x.id===currentStage;});
+  var h='<label>Nome completo *</label><input type="text" id="npNome" placeholder="Nome">'+
+    '<label>WhatsApp</label><input type="tel" id="npTel" placeholder="(62) 9 0000-0000">'+
+    '<label>E-mail</label><input type="email" id="npEmail" placeholder="nome@email.com">'+
+    '<label>Bairro</label><input type="text" id="npBairro" placeholder="Bairro">'+
+    '<button class="btn-primary block" style="margin-top:14px" onclick="addPersonQuick()"><i class="ti ti-check"></i>Adicionar</button>';
+  document.getElementById('newPersonBody').innerHTML=h;
+  openModal('newPersonModal');
+}
+
+function addPersonQuick(){
+  var nome=document.getElementById('npNome').value.trim();
+  if(!nome){showToast('Preencha o nome.');return;}
+  Store.addPerson({
+    nome:nome,
+    telefone:document.getElementById('npTel').value.trim(),
+    email:document.getElementById('npEmail').value.trim(),
+    bairro:document.getElementById('npBairro').value.trim(),
+    stage:newPersonStage||'visitante'
+  });
+  closeModal('newPersonModal');
+  renderAll();
+  if(currentStage)renderStageList(currentStage);
+  showToast('Pessoa adicionada!');
+}
+
+function openApiConfig(){
+  var cfg=Store.getApiConfig();
+  document.getElementById('apiUrl').value=cfg.baseUrl||'';
+  document.getElementById('apiToken').value=cfg.token||'';
+  document.getElementById('apiDeptos').value=Store.getDepartamentos().join('\n');
+  openModal('apiModal');
+}
+
+function saveApiConfig(){
+  Store.setApiConfig({baseUrl:document.getElementById('apiUrl').value.trim(),token:document.getElementById('apiToken').value.trim()});
+  var deptos=document.getElementById('apiDeptos').value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  if(deptos.length)Store.setDepartamentos(deptos);
+  closeModal('apiModal');
+  showToast('Configurações salvas.');
+}
+
+renderAll();
+</script>
+</body>
+</html>
