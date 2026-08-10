@@ -1,7 +1,5 @@
 // Camada de dados. Hoje tudo é salvo em localStorage (por navegador/dispositivo).
-// Quando a integração com a API da plataforma (inChurch) estiver pronta, é aqui que
-// entram as chamadas fetch — o resto do site só fala com o objeto Store, então trocar
-// o back-end não exige mexer nas telas.
+// Credenciais da API inChurch embutidas — todos os dispositivos sincronizam automaticamente.
 const ENTRY_STAGES = ['visitante', 'convertido', 'reconciliado', 'novo_membro'];
 const LINEAR_STAGES = ['gc', 'jornada_membro', 'membro'];
 const STAGES = [
@@ -48,10 +46,14 @@ function prevSubStageId(subStageId){
   return SUB_ORDER[i-1];
 }
 
+// Credenciais da API inChurch — embutidas no código para sincronização automática
+var INCHURCH_BASE_URL = 'https://inradar.com.br/public';
+var INCHURCH_API_KEY = '36c34e00-f6c9-45de-b019-d3886147042b';
+var INCHURCH_API_SECRET = 'mgJIjJXVo7b3MvjqZQqztUnR0HEFjonRGJhTLX2TY9oWoS7WCm3kAfo6xK2EMryJ';
+
 const Store = {
   _key: 'jornada_pessoas',
   _keyResp: 'jornada_responsaveis',
-  _keyApi: 'jornada_api_config',
   _keyDeptos: 'jornada_departamentos',
   getPeople(){
     return JSON.parse(localStorage.getItem(this._key) || '[]');
@@ -154,35 +156,19 @@ const Store = {
   setDepartamentos(list){
     localStorage.setItem(this._keyDeptos, JSON.stringify(list));
   },
-  getApiConfig(){
-    return JSON.parse(localStorage.getItem(this._keyApi) || '{}');
-  },
-  setApiConfig(cfg){
-    localStorage.setItem(this._keyApi, JSON.stringify(cfg));
-  },
   makeAuthHeader(){
-    var cfg = this.getApiConfig();
-    if(!cfg.apiKey || !cfg.apiSecret) return null;
-    var raw = cfg.apiKey + ':' + cfg.apiSecret;
-    var encoded = btoa(raw);
-    return 'Basic ' + encoded;
+    var raw = INCHURCH_API_KEY + ':' + INCHURCH_API_SECRET;
+    return 'Basic ' + btoa(raw);
   },
-  // Pré-cadastro no inChurch — dispara quando a pessoa entra como convertido,
-  // reconciliado ou novo membro (visitante não precisa de conta no app).
   async syncPreCadastro(person){
-    var cfg = this.getApiConfig();
-    if(!cfg.baseUrl || !cfg.apiKey || !cfg.apiSecret){
-      this.updatePerson(person.id, { pendingSync:true });
-      return;
-    }
     try{
       var auth = this.makeAuthHeader();
       var body = {
         name: person.nome,
         email: person.email,
-        phone: person.telefone,
+        phone: person.telefone
       };
-      var res = await fetch(cfg.baseUrl + '/v1/people/', {
+      var res = await fetch(INCHURCH_BASE_URL + '/v1/people/', {
         method: 'POST',
         headers: {
           'Authorization': auth,
@@ -204,13 +190,7 @@ const Store = {
       this.updatePerson(person.id, { pendingSync:true, syncError: String(err) });
     }
   },
-  // Confirmação final — dispara quando a pessoa conclui a jornada e chega em "Membro".
   async syncMembroFinal(person){
-    var cfg = this.getApiConfig();
-    if(!cfg.baseUrl || !cfg.apiKey || !cfg.apiSecret){
-      this.updatePerson(person.id, { pendingSyncMembro:true });
-      return;
-    }
     try{
       var auth = this.makeAuthHeader();
       var personId = person.inchurchId;
@@ -218,7 +198,7 @@ const Store = {
         this.updatePerson(person.id, { pendingSyncMembro:true, syncError: 'Sem inchurchId para atualizar' });
         return;
       }
-      var res = await fetch(cfg.baseUrl + '/v1/people/' + personId + '/', {
+      var res = await fetch(INCHURCH_BASE_URL + '/v1/people/' + personId + '/', {
         method: 'PATCH',
         headers: {
           'Authorization': auth,
