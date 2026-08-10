@@ -250,25 +250,35 @@ function openPerson(id){
     if(p.subStage){
       var ns=nextSubStageId(p.subStage);
       if(ns){
+        var nsLabel=SUB_STAGES.find(function(x){return x.id===ns;}).label;
         h+='<div class="move-btns"><button class="btn-ember" onclick="moveSub(\''+p.id+'\',\''+ns+'\')">'+
-          '<i class="ti ti-arrow-right"></i>Avançar para '+SUB_STAGES.find(function(x){return x.id===ns;}).label+'</button></div>';
+          '<i class="ti ti-arrow-right"></i>Avançar para '+nsLabel+'</button></div>';
       } else {
         h+='<div class="move-btns"><button class="btn-primary" onclick="finishJourney(\''+p.id+'\')">'+
           '<i class="ti ti-award"></i>Concluir jornada — virar Membro</button></div>';
       }
+    } else {
+      h+='<div class="move-btns"><button class="btn-ember" onclick="openRouteForPerson(\''+p.id+'\')">'+
+        '<i class="ti ti-route"></i>Definir caminho (Consolidação ou Batismo)</button></div>';
     }
   }
-  var ns=nextStageId(p.stage);
+  var ns2=nextStageId(p.stage);
   var ps=prevStageId(p.stage,p);
-  if(ns||ps){
+  if(ns2||ps){
     h+='<div class="move-btns">';
     if(ps)h+='<button class="btn-outline" onclick="moveP(\''+p.id+'\',\''+ps+'\')"><i class="ti ti-arrow-left"></i>Voltar</button>';
-    if(ns&&p.stage!=='jornada_membro')h+='<button class="btn-primary" onclick="moveP(\''+p.id+'\',\''+ns+'\')"><i class="ti ti-arrow-right"></i>Avançar</button>';
+    if(ns2&&p.stage!=='jornada_membro')h+='<button class="btn-primary" onclick="moveP(\''+p.id+'\',\''+ns2+'\')"><i class="ti ti-arrow-right"></i>Avançar</button>';
     h+='</div>';
   }
   h+='<div class="move-btns"><button class="btn-danger" onclick="deleteP(\''+p.id+'\')"><i class="ti ti-trash"></i>Remover pessoa</button></div>';
   document.getElementById('personBody').innerHTML=h;
   openModal('personModal');
+}
+
+function openRouteForPerson(id){
+  pendingRoutePersonId=id;
+  closeModal('personModal');
+  openModal('routeModal');
 }
 
 function saveAgente(id){
@@ -313,6 +323,21 @@ function openSubFunnel(){
 }
 
 function renderSubFunnel(){
+  var unassigned=Store.getPeople().filter(function(p){return p.stage==='jornada_membro'&&!p.subStage;});
+  var uh='';
+  if(unassigned.length>0){
+    uh='<div class="subfunnel-col" style="border-color:var(--ember);background:#FFF9F5">'+
+      '<div class="subfunnel-col-head">'+
+      '<div class="ic" style="background:var(--ember-100);color:var(--ember-dark)"><i class="ti ti-route"></i></div>'+
+      '<div><h4>Aguardando rota</h4><span class="count">'+unassigned.length+' pessoas</span>'+
+      '<div class="desc">Clique para definir Consolidação ou Batismo</div></div></div>';
+    unassigned.forEach(function(p){
+      uh+='<div class="subfunnel-person" onclick="openRouteForPerson(\''+p.id+'\')">'+avatarHtml(p,28)+
+        '<div class="info"><strong>'+(p.nome||'?')+'</strong><small>'+daysSince(lastHistoryDate(p))+'</small></div>'+
+        '<i class="ti ti-chevron-right" style="color:var(--ember-dark)"></i></div>';
+    });
+    uh+='</div>';
+  }
   var h='';
   SUB_STAGES.forEach(function(ss){
     var people=Store.peopleInSubStage(ss.id);
@@ -327,7 +352,7 @@ function renderSubFunnel(){
       '<div><h4>'+ss.label+'</h4><span class="count">'+people.length+' pessoas</span>'+
       '<div class="desc">'+ss.desc+'</div></div></div>'+ph+'</div>';
   });
-  document.getElementById('subFunnelGrid').innerHTML=h;
+  document.getElementById('subFunnelGrid').innerHTML=uh+h;
 }
 
 function selectRoute(route){
@@ -343,7 +368,6 @@ function selectRoute(route){
 
 function openNewPersonFromStage(){
   newPersonStage=currentStage;
-  var s=STAGES.find(function(x){return x.id===currentStage;});
   var h='<label>Nome completo *</label><input type="text" id="npNome" placeholder="Nome">'+
     '<label>WhatsApp</label><input type="tel" id="npTel" placeholder="(62) 9 0000-0000">'+
     '<label>E-mail</label><input type="email" id="npEmail" placeholder="nome@email.com">'+
