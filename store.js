@@ -14,8 +14,6 @@ const STAGES = [
   { id:'membro',         label:'Membro',               desc:'Jornada concluída', icon:'ti-award', accent:'green' },
 ];
 
-// Sub-funil dentro de "Jornada do Membro"
-// Consolidação OU Escola de batismo (condicional) → Capacitação → Voluntariado → Membro
 const SUB_STAGES = [
   { id:'consolidacao',    label:'Consolidação',      desc:'Acompanhamento e discipulado', icon:'ti-heart-handshake', accent:'ember' },
   { id:'escola_batismo',  label:'Escola de batismo', desc:'Preparação doutrinária', icon:'ti-book', accent:'ember' },
@@ -162,19 +160,84 @@ const Store = {
   setApiConfig(cfg){
     localStorage.setItem(this._keyApi, JSON.stringify(cfg));
   },
+  makeAuthHeader(){
+    var cfg = this.getApiConfig();
+    if(!cfg.apiKey || !cfg.apiSecret) return null;
+    var raw = cfg.apiKey + ':' + cfg.apiSecret;
+    var encoded = btoa(raw);
+    return 'Basic ' + encoded;
+  },
+  // Pré-cadastro no inChurch — dispara quando a pessoa entra como convertido,
+  // reconciliado ou novo membro (visitante não precisa de conta no app).
   async syncPreCadastro(person){
     var cfg = this.getApiConfig();
-    if(!cfg.baseUrl){ this.updatePerson(person.id, { pendingSync:true }); return; }
+    if(!cfg.baseUrl || !cfg.apiKey || !cfg.apiSecret){
+      this.updatePerson(person.id, { pendingSync:true });
+      return;
+    }
     try{
-      this.updatePerson(person.id, { pendingSync:false });
-    }catch(err){ this.updatePerson(person.id, { pendingSync:true }); }
+      var auth = this.makeAuthHeader();
+      var body = {
+        name: person.nome,
+        email: person.email,
+        phone: person.telefone,
+      };
+      var res = await fetch(cfg.baseUrl + '/v1/people/', {
+        method: 'POST',
+        headers: {
+          'Authorization': auth,
+          'Content-Type': 'application/json',
+          'X-API-Version': 'v1'
+        },
+        body: JSON.stringify(body)
+      });
+      if(!res.ok){
+        var errText = await res.text();
+        console.error('inChurch API erro (pre-cadastro):', res.status, errText);
+        this.updatePerson(person.id, { pendingSync:true, syncError: errText });
+        return;
+      }
+      var json = await res.json();
+      this.updatePerson(person.id, { pendingSync:false, inchurchId: json.id || null, syncError: '' });
+    }catch(err){
+      console.error('inChurch API falha (pre-cadastro):', err);
+      this.updatePerson(person.id, { pendingSync:true, syncError: String(err) });
+    }
   },
+  // Confirmação final — dispara quando a pessoa conclui a jornada e chega em "Membro".
   async syncMembroFinal(person){
     var cfg = this.getApiConfig();
-    if(!cfg.baseUrl){ this.updatePerson(person.id, { pendingSyncMembro:true }); return; }
+    if(!cfg.baseUrl || !cfg.apiKey || !cfg.apiSecret){
+      this.updatePerson(person.id, { pendingSyncMembro:true });
+      return;
+    }
     try{
-      this.updatePerson(person.id, { pendingSyncMembro:false });
-    }catch(err){ this.updatePerson(person.id, { pendingSyncMembro:true }); }
+      var auth = this.makeAuthHeader();
+      var personId = person.inchurchId;
+      if(!personId){
+        this.updatePerson(person.id, { pendingSyncMembro:true, syncError: 'Sem inchurchId para atualizar' });
+        return;
+      }
+      var res = await fetch(cfg.baseUrl + '/v1/people/' + personId + '/', {
+        method: 'PATCH',
+        headers: {
+          'Authorization': auth,
+          'Content-Type': 'application/json',
+          'X-API-Version': 'v1'
+        },
+        body: JSON.stringify({ is_member: true })
+      });
+      if(!res.ok){
+        var errText = await res.text();
+        console.error('inChurch API erro (membro final):', res.status, errText);
+        this.updatePerson(person.id, { pendingSyncMembro:true, syncError: errText });
+        return;
+      }
+      this.updatePerson(person.id, { pendingSyncMembro:false, syncError: '' });
+    }catch(err){
+      console.error('inChurch API falha (membro final):', err);
+      this.updatePerson(person.id, { pendingSyncMembro:true, syncError: String(err) });
+    }
   },
 };
 function initials(name){
