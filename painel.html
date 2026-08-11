@@ -10,6 +10,9 @@
 <link rel="stylesheet" href="styles.css">
 <style>
   body{margin:0;}
+  @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  .loading-overlay{position:fixed;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;z-index:9999;}
+  .loading-overlay .spin{animation:spin 1s linear infinite;display:inline-block;}
   .topbar{background:linear-gradient(160deg,var(--blue-600),var(--blue-400));padding:20px 24px;color:#fff;}
   .topbar-inner{max-width:920px;margin:0 auto;display:flex;align-items:center;gap:12px;}
   .topbar img{width:40px;height:40px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.2);}
@@ -56,6 +59,12 @@
 </style>
 </head>
 <body>
+<div class="loading-overlay" id="loadingOverlay">
+  <div style="text-align:center;">
+    <i class="ti ti-loader spin" style="font-size:32px;color:#1279E6;"></i>
+    <p style="margin-top:12px;color:#777;font-size:14px;">Carregando dados...</p>
+  </div>
+</div>
 <div class="topbar">
   <div class="topbar-inner">
     <img src="assets/logo-mark.png" alt="Logo AD Rio Verde">
@@ -412,7 +421,19 @@ function saveDeptos(){
   showToast('Departamentos salvos.');
 }
 
-renderAll();
+// Inicialização: carrega do Supabase, depois renderiza
+Store.load().then(function(){
+  document.getElementById('loadingOverlay').style.display='none';
+  renderAll();
+}).catch(function(){
+  document.getElementById('loadingOverlay').style.display='none';
+  renderAll();
+});
+
+// Refresh automático a cada 30 segundos (pega mudanças de outros dispositivos)
+setInterval(function(){
+  Store.load().then(function(){ renderAll(); });
+}, 30000);
 </script>
 </body>
 </html>
