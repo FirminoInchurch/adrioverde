@@ -75,7 +75,7 @@ async function supabaseRequest(method, table, body, query){
   };
   if(method !== 'GET') headers['Prefer'] = 'return=minimal';
   try{
-    var opts = { method:method, headers:headers, keepalive:true };
+    var opts = { method:method, headers:headers };
     if(body) opts.body = JSON.stringify(body);
     var res = await fetch(url, opts);
     if(!res.ok){
@@ -163,7 +163,6 @@ const Store = {
   _keyResp: 'jornada_responsaveis',
   _keyDeptos: 'jornada_departamentos',
 
-  // Carrega todas as pessoas do Supabase para o cache em memória
   async load(){
     var rows = await supabaseRequest('GET', 'pessoas', null, 'select=*');
     if(rows && Array.isArray(rows)){
@@ -286,26 +285,53 @@ const Store = {
   },
 
   async syncPreCadastro(person){
+    console.log('[inChurch] Iniciando pré-cadastro para:', person.nome);
     try{
       var auth = this.makeAuthHeader();
       var body = { name: person.nome, email: person.email, phone: person.telefone };
+      console.log('[inChurch] URL:', INCHURCH_BASE_URL + '/v1/people/');
+      console.log('[inChurch] Body:', JSON.stringify(body));
       var res = await fetch(INCHURCH_BASE_URL + '/v1/people/', {
         method: 'POST',
         headers: { 'Authorization': auth, 'Content-Type': 'application/json', 'X-API-Version': 'v1' },
-        body: JSON.stringify(body),
-        keepalive: true
+        body: JSON.stringify(body)
       });
+      console.log('[inChurch] Status:', res.status);
       if(!res.ok){
         var errText = await res.text();
-        console.error('inChurch API erro (pre-cadastro):', res.status, errText);
+        console.error('[inChurch] Erro:', res.status, errText);
         this.updatePerson(person.id, { pendingSync: true, syncError: errText });
         return;
       }
       var json = await res.json();
+      console.log('[inChurch] Sucesso! ID:', json.id);
       this.updatePerson(person.id, { pendingSync: false, inchurchId: json.id || null, syncError: '' });
     }catch(err){
-      console.error('inChurch API falha (pre-cadastro):', err);
-      this.updatePerson(person.id, { pendingSync: true, syncError: String(err) });
+      console.error('[inChurch] Falha (provável CORS):', err);
+      // Tenta via proxy CORS como fallback
+      try{
+        console.log('[inChurch] Tentando via proxy CORS...');
+        var auth2 = this.makeAuthHeader();
+        var proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(INCHURCH_BASE_URL + '/v1/people/');
+        var res2 = await fetch(proxyUrl, {
+          method: 'POST',
+          headers: { 'Authorization': auth2, 'Content-Type': 'application/json', 'X-API-Version': 'v1' },
+          body: JSON.stringify({ name: person.nome, email: person.email, phone: person.telefone })
+        });
+        console.log('[inChurch] Proxy status:', res2.status);
+        if(res2.ok){
+          var json2 = await res2.json();
+          console.log('[inChurch] Proxy sucesso! ID:', json2.id);
+          this.updatePerson(person.id, { pendingSync: false, inchurchId: json2.id || null, syncError: '' });
+          return;
+        }
+        var errText2 = await res2.text();
+        console.error('[inChurch] Proxy erro:', res2.status, errText2);
+        this.updatePerson(person.id, { pendingSync: true, syncError: errText2 });
+      }catch(err2){
+        console.error('[inChurch] Proxy também falhou:', err2);
+        this.updatePerson(person.id, { pendingSync: true, syncError: String(err2) });
+      }
     }
   },
 
@@ -319,8 +345,7 @@ const Store = {
       var res = await fetch(INCHURCH_BASE_URL + '/v1/people/' + person.inchurchId + '/', {
         method: 'PATCH',
         headers: { 'Authorization': auth, 'Content-Type': 'application/json', 'X-API-Version': 'v1' },
-        body: JSON.stringify({ is_member: true }),
-        keepalive: true
+        body: JSON.stringify({ is_member: true })
       });
       if(!res.ok){
         var errText = await res.text();
