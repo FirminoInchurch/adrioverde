@@ -8,7 +8,7 @@
 
 // --- Supabase ---
 var SUPABASE_URL = 'https://rhguimekoykfcfykgndn.supabase.co/rest/v1';
-var SUPABASE_KEY = 'sb_publishable_v9keqrRtBPeJiF2V-WeuTQ_HFNi9wOR';
+var SUPABASE_KEY = 'sb_publishable_v9keqrRtBPeJiF2V-WeuTQ_HFnI9wOR';
 
 // --- inChurch API ---
 var INCHURCH_BASE_URL = 'https://inradar.com.br/public';
