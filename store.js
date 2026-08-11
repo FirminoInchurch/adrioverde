@@ -1,5 +1,24 @@
-// Camada de dados. Hoje tudo é salvo em localStorage (por navegador/dispositivo).
-// Credenciais da API inChurch embutidas — todos os dispositivos sincronizam automaticamente.
+// =====================================================
+// Camada de dados — Supabase (nuvem) + cache em memória
+// =====================================================
+// Todos os dados das pessoas ficam no Supabase (banco na nuvem).
+// Qualquer dispositivo que abrir o painel vê os mesmos dados.
+// O cache em memória permite leitura instantânea (síncrona).
+// Escritas disparam para o Supabase em segundo plano (async).
+
+// --- Supabase ---
+var SUPABASE_URL = 'https://rhguimekoykfcfykgndn.supabase.co/rest/v1';
+var SUPABASE_KEY = 'sb_publishable_v9keqrRtBPeJiF2V-WeuTQ_HFNi9wOR';
+
+// --- inChurch API ---
+var INCHURCH_BASE_URL = 'https://inradar.com.br/public';
+var INCHURCH_API_KEY = '36c34e00-f6c9-45de-b019-d3886147042b';
+var INCHURCH_API_SECRET = 'mgJIjJXVo7b3MvjqZQqztUnR0HEFjonRGJhTLX2TY9oWoS7WCm3kAfo6xK2EMryJ';
+
+// --- Cache em memória ---
+var _peopleCache = [];
+
+// --- Constantes da jornada ---
 const ENTRY_STAGES = ['visitante', 'convertido', 'reconciliado', 'novo_membro'];
 const LINEAR_STAGES = ['gc', 'jornada_membro', 'membro'];
 const STAGES = [
@@ -11,7 +30,6 @@ const STAGES = [
   { id:'jornada_membro', label:'Jornada do membro',    desc:'Consolidação e/ou escola de batismo', icon:'ti-compass', accent:'ember' },
   { id:'membro',         label:'Membro',               desc:'Jornada concluída', icon:'ti-award', accent:'green' },
 ];
-
 const SUB_STAGES = [
   { id:'consolidacao',    label:'Consolidação',      desc:'Acompanhamento e discipulado', icon:'ti-heart-handshake', accent:'ember' },
   { id:'escola_batismo',  label:'Escola de batismo', desc:'Preparação doutrinária', icon:'ti-book', accent:'ember' },
@@ -46,23 +64,119 @@ function prevSubStageId(subStageId){
   return SUB_ORDER[i-1];
 }
 
-// Credenciais da API inChurch — embutidas no código para sincronização automática
-var INCHURCH_BASE_URL = 'https://inradar.com.br/public';
-var INCHURCH_API_KEY = '36c34e00-f6c9-45de-b019-d3886147042b';
-var INCHURCH_API_SECRET = 'mgJIjJXVo7b3MvjqZQqztUnR0HEFjonRGJhTLX2TY9oWoS7WCm3kAfo6xK2EMryJ';
+// --- Helper: chamada Supabase REST ---
+async function supabaseRequest(method, table, body, query){
+  var url = SUPABASE_URL + '/' + table;
+  if(query) url += '?' + query;
+  var headers = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_KEY,
+    'Content-Type': 'application/json'
+  };
+  if(method !== 'GET') headers['Prefer'] = 'return=minimal';
+  try{
+    var opts = { method:method, headers:headers, keepalive:true };
+    if(body) opts.body = JSON.stringify(body);
+    var res = await fetch(url, opts);
+    if(!res.ok){
+      var errText = await res.text();
+      console.error('Supabase erro:', method, res.status, errText);
+      return null;
+    }
+    if(method === 'GET') return await res.json();
+    return true;
+  }catch(err){
+    console.error('Supabase falha:', method, err);
+    return null;
+  }
+}
 
+// --- Mapeamento JS (camelCase) ↔ DB (snake_case) ---
+function toDb(p){
+  return {
+    id: p.id,
+    nome: p.nome || '',
+    telefone: p.telefone || '',
+    email: p.email || '',
+    bairro: p.bairro || '',
+    idade: p.idade || '',
+    estado_civil: p.estadoCivil || '',
+    igreja_anterior: p.igrejaAnterior || '',
+    tem_carta: p.temCarta || '',
+    funcao_ministerial: p.funcaoMinisterial || '',
+    quis_gc: p.quisGC || '',
+    pedido_oracao: p.pedidoOracao || '',
+    congregacao: p.congregacao || '',
+    quem_coleta: p.quemColeta || '',
+    departamento: p.departamento || '',
+    agente_integrante: p.agenteIntegrante || '',
+    sub_stage: p.subStage || '',
+    notas: p.notas || '',
+    foto: p.foto || null,
+    stage: p.stage || 'visitante',
+    origem: p.origem || '',
+    inchurch_id: p.inchurchId || null,
+    pending_sync: p.pendingSync || false,
+    pending_sync_membro: p.pendingSyncMembro || false,
+    sync_error: p.syncError || '',
+    created_at: p.createdAt || new Date().toISOString(),
+    history: JSON.stringify(p.history || []),
+    sub_history: JSON.stringify(p.subHistory || [])
+  };
+}
+
+function fromDb(row){
+  return {
+    id: row.id,
+    nome: row.nome || '',
+    telefone: row.telefone || '',
+    email: row.email || '',
+    bairro: row.bairro || '',
+    idade: String(row.idade || ''),
+    estadoCivil: row.estado_civil || '',
+    igrejaAnterior: row.igreja_anterior || '',
+    temCarta: row.tem_carta || '',
+    funcaoMinisterial: row.funcao_ministerial || '',
+    quisGC: row.quis_gc || '',
+    pedidoOracao: row.pedido_oracao || '',
+    congregacao: row.congregacao || '',
+    quemColeta: row.quem_coleta || '',
+    departamento: row.departamento || '',
+    agenteIntegrante: row.agente_integrante || '',
+    subStage: row.sub_stage || '',
+    notas: row.notas || '',
+    foto: row.foto || null,
+    stage: row.stage || 'visitante',
+    origem: row.origem || '',
+    inchurchId: row.inchurch_id || null,
+    pendingSync: row.pending_sync || false,
+    pendingSyncMembro: row.pending_sync_membro || false,
+    syncError: row.sync_error || '',
+    createdAt: row.created_at || new Date().toISOString(),
+    history: typeof row.history === 'string' ? JSON.parse(row.history || '[]') : (row.history || []),
+    subHistory: typeof row.sub_history === 'string' ? JSON.parse(row.sub_history || '[]') : (row.sub_history || [])
+  };
+}
+
+// --- Store ---
 const Store = {
-  _key: 'jornada_pessoas',
   _keyResp: 'jornada_responsaveis',
   _keyDeptos: 'jornada_departamentos',
+
+  // Carrega todas as pessoas do Supabase para o cache em memória
+  async load(){
+    var rows = await supabaseRequest('GET', 'pessoas', null, 'select=*');
+    if(rows && Array.isArray(rows)){
+      _peopleCache = rows.map(fromDb);
+    }
+    return _peopleCache;
+  },
+
   getPeople(){
-    return JSON.parse(localStorage.getItem(this._key) || '[]');
+    return _peopleCache;
   },
-  _savePeople(list){
-    localStorage.setItem(this._key, JSON.stringify(list));
-  },
+
   addPerson(data){
-    var list = this.getPeople();
     var stage = data.stage || 'visitante';
     var p = {
       id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
@@ -86,61 +200,70 @@ const Store = {
       foto: data.foto || null,
       stage: stage,
       origem: stage,
+      inchurchId: null,
+      pendingSync: false,
+      pendingSyncMembro: false,
+      syncError: '',
       createdAt: new Date().toISOString(),
       history: [{ stage: stage, date: new Date().toISOString() }],
       subHistory: [],
     };
-    list.push(p);
-    this._savePeople(list);
+    _peopleCache.push(p);
+    supabaseRequest('POST', 'pessoas', toDb(p));
     if(stage !== 'visitante'){ this.syncPreCadastro(p); }
     return p;
   },
+
   updatePerson(id, data){
-    var list = this.getPeople();
-    var p = list.find(function(x){ return x.id === id; });
+    var p = _peopleCache.find(function(x){ return x.id === id; });
     if(!p) return null;
     Object.assign(p, data);
-    this._savePeople(list);
+    supabaseRequest('PATCH', 'pessoas', toDb(p), 'id=eq.' + id);
     return p;
   },
+
   movePerson(id, newStageId){
-    var list = this.getPeople();
-    var p = list.find(function(x){ return x.id === id; });
+    var p = _peopleCache.find(function(x){ return x.id === id; });
     if(!p) return null;
     p.stage = newStageId;
     p.history = p.history || [];
     p.history.push({ stage: newStageId, date: new Date().toISOString() });
-    this._savePeople(list);
-    if(newStageId === 'membro'){ Store.syncMembroFinal(p); }
+    supabaseRequest('PATCH', 'pessoas', toDb(p), 'id=eq.' + id);
+    if(newStageId === 'membro'){ this.syncMembroFinal(p); }
     return p;
   },
+
   moveSubStage(id, newSubStageId){
-    var list = this.getPeople();
-    var p = list.find(function(x){ return x.id === id; });
+    var p = _peopleCache.find(function(x){ return x.id === id; });
     if(!p) return null;
     p.subStage = newSubStageId;
     p.subHistory = p.subHistory || [];
     p.subHistory.push({ subStage: newSubStageId, date: new Date().toISOString() });
-    this._savePeople(list);
+    supabaseRequest('PATCH', 'pessoas', toDb(p), 'id=eq.' + id);
     return p;
   },
+
   deletePerson(id){
-    var list = this.getPeople().filter(function(p){ return p.id !== id; });
-    this._savePeople(list);
+    _peopleCache = _peopleCache.filter(function(p){ return p.id !== id; });
+    supabaseRequest('DELETE', 'pessoas', null, 'id=eq.' + id);
   },
+
   peopleInStage(stageId, congregacao){
-    return this.getPeople().filter(function(p){
+    return _peopleCache.filter(function(p){
       return p.stage === stageId && (!congregacao || congregacao === 'todas' || p.congregacao === congregacao);
     });
   },
+
   peopleInSubStage(subStageId){
-    return this.getPeople().filter(function(p){
+    return _peopleCache.filter(function(p){
       return p.stage === 'jornada_membro' && p.subStage === subStageId;
     });
   },
+
   congregacoes(){
-    return Array.from(new Set(this.getPeople().map(function(p){ return p.congregacao; }).filter(Boolean))).sort();
+    return Array.from(new Set(_peopleCache.map(function(p){ return p.congregacao; }).filter(Boolean))).sort();
   },
+
   getResponsaveis(){
     return JSON.parse(localStorage.getItem(this._keyResp) || '{}');
   },
@@ -156,70 +279,64 @@ const Store = {
   setDepartamentos(list){
     localStorage.setItem(this._keyDeptos, JSON.stringify(list));
   },
+
   makeAuthHeader(){
     var raw = INCHURCH_API_KEY + ':' + INCHURCH_API_SECRET;
     return 'Basic ' + btoa(raw);
   },
+
   async syncPreCadastro(person){
     try{
       var auth = this.makeAuthHeader();
-      var body = {
-        name: person.nome,
-        email: person.email,
-        phone: person.telefone
-      };
+      var body = { name: person.nome, email: person.email, phone: person.telefone };
       var res = await fetch(INCHURCH_BASE_URL + '/v1/people/', {
         method: 'POST',
-        headers: {
-          'Authorization': auth,
-          'Content-Type': 'application/json',
-          'X-API-Version': 'v1'
-        },
-        body: JSON.stringify(body)
+        headers: { 'Authorization': auth, 'Content-Type': 'application/json', 'X-API-Version': 'v1' },
+        body: JSON.stringify(body),
+        keepalive: true
       });
       if(!res.ok){
         var errText = await res.text();
         console.error('inChurch API erro (pre-cadastro):', res.status, errText);
-        this.updatePerson(person.id, { pendingSync:true, syncError: errText });
+        this.updatePerson(person.id, { pendingSync: true, syncError: errText });
         return;
       }
       var json = await res.json();
-      this.updatePerson(person.id, { pendingSync:false, inchurchId: json.id || null, syncError: '' });
+      this.updatePerson(person.id, { pendingSync: false, inchurchId: json.id || null, syncError: '' });
     }catch(err){
       console.error('inChurch API falha (pre-cadastro):', err);
-      this.updatePerson(person.id, { pendingSync:true, syncError: String(err) });
+      this.updatePerson(person.id, { pendingSync: true, syncError: String(err) });
     }
   },
+
   async syncMembroFinal(person){
     try{
       var auth = this.makeAuthHeader();
-      var personId = person.inchurchId;
-      if(!personId){
-        this.updatePerson(person.id, { pendingSyncMembro:true, syncError: 'Sem inchurchId para atualizar' });
+      if(!person.inchurchId){
+        this.updatePerson(person.id, { pendingSyncMembro: true, syncError: 'Sem inchurchId' });
         return;
       }
-      var res = await fetch(INCHURCH_BASE_URL + '/v1/people/' + personId + '/', {
+      var res = await fetch(INCHURCH_BASE_URL + '/v1/people/' + person.inchurchId + '/', {
         method: 'PATCH',
-        headers: {
-          'Authorization': auth,
-          'Content-Type': 'application/json',
-          'X-API-Version': 'v1'
-        },
-        body: JSON.stringify({ is_member: true })
+        headers: { 'Authorization': auth, 'Content-Type': 'application/json', 'X-API-Version': 'v1' },
+        body: JSON.stringify({ is_member: true }),
+        keepalive: true
       });
       if(!res.ok){
         var errText = await res.text();
-        console.error('inChurch API erro (membro final):', res.status, errText);
-        this.updatePerson(person.id, { pendingSyncMembro:true, syncError: errText });
+        console.error('inChurch API erro (membro):', res.status, errText);
+        this.updatePerson(person.id, { pendingSyncMembro: true, syncError: errText });
         return;
       }
-      this.updatePerson(person.id, { pendingSyncMembro:false, syncError: '' });
+      this.updatePerson(person.id, { pendingSyncMembro: false, syncError: '' });
     }catch(err){
-      console.error('inChurch API falha (membro final):', err);
-      this.updatePerson(person.id, { pendingSyncMembro:true, syncError: String(err) });
+      console.error('inChurch API falha (membro):', err);
+      this.updatePerson(person.id, { pendingSyncMembro: true, syncError: String(err) });
     }
   },
 };
+
+// --- Helpers de UI ---
 function initials(name){
   return (name||'?').trim().split(/\s+/).slice(0,2).map(function(w){ return w[0]; }).join('').toUpperCase();
 }
